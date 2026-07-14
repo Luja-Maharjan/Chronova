@@ -6,6 +6,7 @@ export const ESEWA_CONFIG = {
   formUrl: process.env.ESEWA_FORM_URL || 'https://rc-epay.esewa.com.np/api/epay/main/v2/form',
   statusUrl: process.env.ESEWA_STATUS_URL || 'https://rc-epay.esewa.com.np/api/epay/transaction/status/',
   signedFieldNames: 'total_amount,transaction_uuid,product_code',
+  mockMode: process.env.ESEWA_MOCK_MODE === 'true',
 };
 
 /** Format NPR amounts to exactly 2 decimal places (required for signature consistency). */
@@ -158,6 +159,34 @@ export async function checkTransactionStatus({ productCode, totalAmount, transac
 export function buildPaymentDetailsForOrder(order, frontendUrl) {
   const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
   const transactionUuid = createTransactionUuid(order._id.toString());
+
+  if (ESEWA_CONFIG.mockMode) {
+    // Mock mode: return simulated payment data for local testing
+    const mockData = {
+      transaction_uuid: transactionUuid,
+      total_amount: formatAmount(order.totalPrice),
+      product_code: ESEWA_CONFIG.productCode,
+      status: 'COMPLETE',
+      transaction_code: 'MOCK_TXN_' + Date.now(),
+    };
+
+    // Encode the mock data as eSewa would
+    const jsonString = JSON.stringify(mockData);
+    const base64Data = Buffer.from(jsonString).toString('base64');
+    const urlEncodedData = encodeURIComponent(base64Data);
+
+    console.log('[eSewa] Mock mode enabled - returning simulated payment data');
+
+    return {
+      paymentDetails: {
+        url: `${baseUrl}/payment-success?data=${urlEncodedData}`,
+        fields: {},
+        mockMode: true,
+      },
+      transactionUuid,
+      totalAmount: formatAmount(order.totalPrice),
+    };
+  }
 
   const payment = buildPaymentFormFields({
     itemsPrice: order.itemsPrice,

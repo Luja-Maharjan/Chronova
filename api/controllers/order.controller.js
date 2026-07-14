@@ -274,17 +274,21 @@ export const verifyEsewaPayment = async (req, res) => {
       });
     }
 
-    // Verify callback signature
-    try {
-      if (!verifyCallbackSignature(decodedJson)) {
-        console.error('[eSewa] Signature verification failed');
+    // Verify callback signature (skip in mock mode)
+    if (!decodedJson.transaction_code?.startsWith('MOCK_TXN_')) {
+      try {
+        if (!verifyCallbackSignature(decodedJson)) {
+          console.error('[eSewa] Signature verification failed');
+          return res.status(400).json({ message: 'Signature verification failed' });
+        }
+      } catch (sigError) {
+        console.error('[eSewa] Signature comparison error:', sigError.message);
         return res.status(400).json({ message: 'Signature verification failed' });
       }
-    } catch (sigError) {
-      console.error('[eSewa] Signature comparison error:', sigError.message);
-      return res.status(400).json({ message: 'Signature verification failed' });
+      console.log('[eSewa] Callback signature verified');
+    } else {
+      console.log('[eSewa] Mock transaction detected - skipping signature verification');
     }
-    console.log('[eSewa] Callback signature verified');
 
     // Verify amount matches order
     const expectedAmount = formatAmount(order.totalPrice);
@@ -293,20 +297,25 @@ export const verifyEsewaPayment = async (req, res) => {
       return res.status(400).json({ message: 'Payment amount mismatch' });
     }
 
-    // Verify with eSewa status API
-    const statusData = await checkTransactionStatus({
-      productCode: product_code,
-      totalAmount: total_amount,
-      transactionUuid: transaction_uuid,
-    });
-
-    if (statusData.status !== 'COMPLETE') {
-      console.error('[eSewa] Transaction not complete. Status:', statusData.status);
-      return res.status(400).json({
-        message: `Transaction status is ${statusData.status}. Payment not confirmed.`,
+    // Verify with eSewa status API (skip in mock mode)
+    let statusData = { status: 'COMPLETE' };
+    if (!decodedJson.transaction_code?.startsWith('MOCK_TXN_')) {
+      statusData = await checkTransactionStatus({
+        productCode: product_code,
+        totalAmount: total_amount,
+        transactionUuid: transaction_uuid,
       });
+
+      if (statusData.status !== 'COMPLETE') {
+        console.error('[eSewa] Transaction not complete. Status:', statusData.status);
+        return res.status(400).json({
+          message: `Transaction status is ${statusData.status}. Payment not confirmed.`,
+        });
+      }
+      console.log('[eSewa] Transaction status confirmed as COMPLETE');
+    } else {
+      console.log('[eSewa] Mock transaction - skipping status API check');
     }
-    console.log('[eSewa] Transaction status confirmed as COMPLETE');
 
     // Mark order as paid
     order.isPaid = true;

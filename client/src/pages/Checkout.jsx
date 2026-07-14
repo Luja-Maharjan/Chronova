@@ -70,20 +70,26 @@ export default function Checkout() {
         // Store pending order ID so user can retry payment if eSewa fails
         sessionStorage.setItem('pendingEsewaOrderId', data._id);
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = data.paymentDetails.url;
+        if (data.paymentDetails.mockMode) {
+          // Mock mode: redirect directly to success page with simulated payment data
+          window.location.href = data.paymentDetails.url;
+        } else {
+          // Real eSewa: submit form to eSewa gateway
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = data.paymentDetails.url;
 
-        Object.entries(data.paymentDetails.fields).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
+          Object.entries(data.paymentDetails.fields).forEach(([key, value]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+          });
 
-        document.body.appendChild(form);
-        form.submit();
+          document.body.appendChild(form);
+          form.submit();
+        }
       } else {
         toast.success('Order placed successfully!');
         await clearCart();
