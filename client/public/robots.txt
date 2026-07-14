@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /checkout
+Disallow: /order/
+Disallow: /payment-success
+Disallow: /payment-failure
+
+Sitemap: https://chronova.com/sitemap.xml
